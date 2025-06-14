@@ -1,0 +1,241 @@
+# Controle - CLI & Code Generators 🛠️
+
+You are working on **Controle**, the command-line interface and code generation system for the Foguete framework.
+
+## Package Purpose
+Controle provides the `fog` CLI tool for project scaffolding, development server, and code generation.
+
+## Key Responsibilities
+- Project scaffolding (`fog new`)
+- Development server with hot reload (`fog server`)
+- Database migrations (`fog migrate`)
+- Code generators (`fog generate`)
+- Build and deployment tools
+- Project maintenance utilities
+
+## Core Commands
+- `fog new <name>` - Create new Foguete project
+- `fog server` - Start development server
+- `fog generate <type> <name>` - Generate code scaffolds
+- `fog migrate` - Run database migrations
+- `fog build` - Build for production
+- `fog console` - Interactive Lua console
+
+## CLI Architecture
+```lua
+local controle = {}
+
+controle.commands = {
+    new = require("foguete.controle.commands.new"),
+    server = require("foguete.controle.commands.server"),
+    generate = require("foguete.controle.commands.generate"),
+    migrate = require("foguete.controle.commands.migrate")
+}
+
+function controle.run(argv)
+    local command = argv[1]
+    local args = { table.unpack(argv, 2) }
+    
+    if controle.commands[command] then
+        return controle.commands[command].run(args)
+    else
+        controle.show_help()
+    end
+end
+
+return controle
+```
+
+## Project Scaffolding
+```lua
+-- fog new my_app
+local function scaffold_project(name)
+    local dirs = {
+        name,
+        name .. "/src/app/controllers",
+        name .. "/src/app/models", 
+        name .. "/src/app/views",
+        name .. "/src/config",
+        name .. "/db/migrate",
+        name .. "/public",
+        name .. "/spec"
+    }
+    
+    for _, dir in ipairs(dirs) do
+        os.execute("mkdir -p " .. dir)
+    end
+    
+    -- Generate main.lua
+    local main_content = [[
+local foguete = require("foguete")
+
+local app = foguete.new({
+    environment = os.getenv("FOGUETE_ENV") or "development"
+})
+
+app:start()
+]]
+    
+    write_file(name .. "/main.lua", main_content)
+end
+```
+
+## Code Generators
+```lua
+-- fog generate controller Users
+local function generate_controller(name)
+    local template = [[
+local BaseController = require("foguete.comando")
+local {{model}} = require("app.models.{{model_lower}}")
+
+local {{name}}Controller = BaseController:extend()
+
+function {{name}}Controller:index()
+    local {{model_lower}}s = {{model}}:all()
+    return self:render("{{model_lower}}s/index", { {{model_lower}}s = {{model_lower}}s })
+end
+
+function {{name}}Controller:show()
+    local {{model_lower}} = {{model}}:find(self.params.id)
+    return self:render("{{model_lower}}s/show", { {{model_lower}} = {{model_lower}} })
+end
+
+return {{name}}Controller
+]]
+    
+    local content = render_template(template, {
+        name = name,
+        model = singularize(name),
+        model_lower = singularize(name):lower()
+    })
+    
+    write_file("src/app/controllers/" .. name:lower() .. "_controller.lua", content)
+end
+```
+
+## Development Server
+```lua
+-- fog server
+local function start_dev_server()
+    local motor = require("foguete.motor")
+    local hangar = require("foguete.hangar")
+    
+    -- Start Vite dev server for frontend assets
+    local vite_process = spawn_process("npx vite --port 3001")
+    
+    -- Start Foguete server with hot reload
+    motor.serve({
+        host = "127.0.0.1",
+        port = 3000,
+        hot_reload = true
+    }, function(request)
+        return handle_request(request)
+    end)
+end
+```
+
+## Migration System
+```lua
+-- fog migrate
+local function run_migrations()
+    local carga = require("foguete.carga")
+    local db = carga.connect()
+    
+    -- Get pending migrations
+    local migrations = get_pending_migrations()
+    
+    for _, migration in ipairs(migrations) do
+        print("Running migration:", migration.name)
+        local migration_module = require("db.migrate." .. migration.name)
+        migration_module.up(db)
+        mark_migration_as_run(migration.name)
+    end
+end
+```
+
+## Interactive Console
+```lua
+-- fog console
+local function start_console()
+    local env = load_environment()
+    
+    -- Load all models
+    local models = {}
+    for model_file in lfs.dir("src/app/models") do
+        if model_file:match("%.lua$") then
+            local model_name = model_file:gsub("%.lua$", "")
+            models[model_name] = require("app.models." .. model_name)
+        end
+    end
+    
+    -- Interactive REPL
+    while true do
+        io.write("foguete> ")
+        local input = io.read()
+        
+        if input == "exit" then break end
+        
+        local chunk, err = load(input)
+        if chunk then
+            local success, result = pcall(chunk)
+            if success then
+                print(result)
+            else
+                print("Error:", result)
+            end
+        else
+            print("Syntax error:", err)
+        end
+    end
+end
+```
+
+## Build System
+```lua
+-- fog build
+local function build_production()
+    -- Build frontend assets
+    os.execute("npx vite build")
+    
+    -- Bundle Lua code
+    bundle_lua_modules()
+    
+    -- Create single executable
+    create_executable()
+end
+```
+
+## Coding Guidelines
+- Use clear command-line argument parsing
+- Provide helpful error messages and usage info
+- Support configuration via environment variables
+- Implement proper file system operations
+- Use templates for code generation
+- Support cross-platform development
+- Include progress indicators for long operations
+
+## Template System
+Use simple string interpolation for code generation:
+```lua
+local function render_template(template, data)
+    local result = template
+    for key, value in pairs(data) do
+        result = result:gsub("{{" .. key .. "}}", value)
+    end
+    return result
+end
+```
+
+## Testing Requirements
+- Test all CLI commands
+- Verify generated code compiles
+- Test project scaffolding
+- Test migration system
+- Test development server startup
+- Mock file system operations
+
+## Dependencies
+- File system operations (lfs)
+- Process spawning utilities
+- Template rendering system
+- Command-line argument parsing 
