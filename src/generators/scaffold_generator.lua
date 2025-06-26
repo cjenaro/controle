@@ -60,7 +60,8 @@ function ScaffoldGenerator.run(parsed_args)
     local controller_name = StringUtils.pluralize(model_name)
     local controller_args = {
         subcommand = controller_name,
-        args = {"index", "show", "new", "create", "edit", "update", "destroy"},
+        args = parsed_args.args, -- Pass the field definitions
+        actions = {"index", "show", "new", "create", "edit", "update", "destroy"}, -- Separate actions
         options = parsed_args.options
     }
     

@@ -10,6 +10,7 @@ end
 
 local BaseGenerator = safe_require("controle.generators.base_generator", "generators.base_generator")
 local StringUtils = safe_require("controle.utils.string_utils", "utils.string_utils")
+local FileUtils = safe_require("controle.utils.file_utils", "utils.file_utils")
 
 --- @class ControllerGenerator : BaseGenerator
 local ControllerGenerator = BaseGenerator:extend("ControllerGenerator")
@@ -50,6 +51,277 @@ function ControllerGenerator:is_valid_action(action, valid_actions)
         end
     end
     return false
+end
+
+--- Parse field definitions from command line arguments
+--- @param fields table<number, string> Field definitions like "name:string", "age:integer"
+--- @return table<number, table> Parsed field definitions
+function ControllerGenerator:parse_fields(fields)
+    local parsed_fields = {}
+    
+    for _, field_def in ipairs(fields) do
+        local name, field_type = field_def:match("^([^:]+):(.+)$")
+        if name and field_type then
+            local field = {
+                name = name,
+                type = field_type,
+                ts_type = self:lua_to_typescript_type(field_type)
+            }
+            table.insert(parsed_fields, field)
+        end
+    end
+    
+    return parsed_fields
+end
+
+--- Convert Lua type to TypeScript type
+--- @param lua_type string Lua type (string, number, boolean, etc.)
+--- @return string TypeScript type
+function ControllerGenerator:lua_to_typescript_type(lua_type)
+    local type_map = {
+        string = "string",
+        text = "string", 
+        integer = "number",
+        number = "number",
+        float = "number",
+        boolean = "boolean",
+        datetime = "string",
+        date = "string",
+        time = "string"
+    }
+    
+    return type_map[lua_type] or "string"
+end
+
+--- Generate view content based on fields
+--- @param fields table<number, table> Parsed field definitions
+--- @param singular_name string Singular model name
+--- @return string, string, string, string, string interface_fields, table_headers, table_cells, detail_fields, form_fields
+function ControllerGenerator:generate_view_content(fields, singular_name)
+    local interface_parts = {"  id: number;"}
+    local header_parts = {"                    <th scope=\"col\" className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">ID</th>"}
+    local cell_parts = {"                      <td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">{" .. singular_name .. ".id}</td>"}
+    local detail_parts = {}
+    local form_parts = {}
+    
+    -- Add ID field to details
+    table.insert(detail_parts, [[              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">ID</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{]] .. singular_name .. [[.id}</dd>
+              </div>]])
+    
+    -- Generate content for each field
+    for _, field in ipairs(fields) do
+        local field_name = field.name
+        local field_type = field.ts_type
+        local field_title = StringUtils.titleize(field_name)
+        
+        -- TypeScript interface
+        table.insert(interface_parts, "  " .. field_name .. ": " .. field_type .. ";")
+        
+        -- Table header
+        table.insert(header_parts, "                    <th scope=\"col\" className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">" .. field_title .. "</th>")
+        
+        -- Table cell
+        local cell_content
+        if field.type == "datetime" or field.type == "date" then
+            cell_content = "{new Date(" .. singular_name .. "." .. field_name .. ").toLocaleDateString()}"
+        elseif field.type == "boolean" then
+            cell_content = "{" .. singular_name .. "." .. field_name .. " ? 'Yes' : 'No'}"
+        else
+            cell_content = "{" .. singular_name .. "." .. field_name .. "}"
+        end
+        table.insert(cell_parts, "                      <td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">" .. cell_content .. "</td>")
+        
+        -- Detail field
+        local detail_content
+        if field.type == "datetime" or field.type == "date" then
+            detail_content = "{new Date(" .. singular_name .. "." .. field_name .. ").toLocaleDateString()}"
+        elseif field.type == "boolean" then
+            detail_content = "{" .. singular_name .. "." .. field_name .. " ? 'Yes' : 'No'}"
+        else
+            detail_content = "{" .. singular_name .. "." .. field_name .. "}"
+        end
+        table.insert(detail_parts, [[              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">]] .. field_title .. [[</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">]] .. detail_content .. [[</dd>
+              </div>]])
+        
+        -- Form field
+        local input_type = "text"
+        if field.type == "integer" or field.type == "number" or field.type == "float" then
+            input_type = "number"
+        elseif field.type == "boolean" then
+            input_type = "checkbox"
+        elseif field.type == "date" then
+            input_type = "date"
+        elseif field.type == "datetime" then
+            input_type = "datetime-local"
+        elseif field.type == "text" then
+            input_type = "textarea"
+        end
+        
+        local form_field
+        if input_type == "textarea" then
+            form_field = [[                <div>
+                  <label htmlFor="]] .. field_name .. [[" className="block text-sm font-medium text-gray-700">]] .. field_title .. [[</label>
+                  <div className="mt-1">
+                    <textarea
+                      id="]] .. field_name .. [["
+                      name="]] .. field_name .. [["
+                      rows={3}
+                      value={formData.]] .. field_name .. [[ || ''}
+                      onChange={(e) => handleChange(']] .. field_name .. [[', e.target.value)}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                  </div>
+                  {errors.]] .. field_name .. [[ && (
+                    <p className="mt-2 text-sm text-red-600">{errors.]] .. field_name .. [[.join(', ')}</p>
+                  )}
+                </div>]]
+        elseif input_type == "checkbox" then
+            form_field = [[                <div className="flex items-center">
+                  <input
+                    id="]] .. field_name .. [["
+                    name="]] .. field_name .. [["
+                    type="checkbox"
+                    checked={formData.]] .. field_name .. [[ || false}
+                    onChange={(e) => handleChange(']] .. field_name .. [[', e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="]] .. field_name .. [[" className="ml-2 block text-sm text-gray-900">]] .. field_title .. [[</label>
+                  {errors.]] .. field_name .. [[ && (
+                    <p className="mt-2 text-sm text-red-600">{errors.]] .. field_name .. [[.join(', ')}</p>
+                  )}
+                </div>]]
+        else
+            form_field = [[                <div>
+                  <label htmlFor="]] .. field_name .. [[" className="block text-sm font-medium text-gray-700">]] .. field_title .. [[</label>
+                  <div className="mt-1">
+                    <input
+                      type="]] .. input_type .. [["
+                      id="]] .. field_name .. [["
+                      name="]] .. field_name .. [["
+                      value={formData.]] .. field_name .. [[ || ''}
+                      onChange={(e) => handleChange(']] .. field_name .. [[', e.target.value)}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                  </div>
+                  {errors.]] .. field_name .. [[ && (
+                    <p className="mt-2 text-sm text-red-600">{errors.]] .. field_name .. [[.join(', ')}</p>
+                  )}
+                </div>]]
+        end
+        table.insert(form_parts, form_field)
+    end
+    
+    -- Add timestamps
+    table.insert(interface_parts, "  created_at: string;")
+    table.insert(interface_parts, "  updated_at: string;")
+    
+    table.insert(header_parts, "                    <th scope=\"col\" className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">Created</th>")
+    table.insert(cell_parts, "                      <td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-500\">{new Date(" .. singular_name .. ".created_at).toLocaleDateString()}</td>")
+    
+    table.insert(detail_parts, [[              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">Created At</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(]] .. singular_name .. [[.created_at).toLocaleDateString()}</dd>
+              </div>]])
+    
+    table.insert(detail_parts, [[              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">Updated At</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(]] .. singular_name .. [[.updated_at).toLocaleDateString()}</dd>
+              </div>]])
+    
+    return table.concat(interface_parts, "\n"),
+           table.concat(header_parts, "\n"),
+           table.concat(cell_parts, "\n"),
+           table.concat(detail_parts, "\n"),
+           table.concat(form_parts, "\n")
+end
+
+--- Update main.tsx with new view imports
+--- @param view_path string View path (e.g., "posts")
+--- @param actions table<number, string> Generated actions
+--- @return nil
+function ControllerGenerator:update_main_tsx_imports(view_path, actions)
+    local main_file = "app/main.tsx"
+    
+    -- Check if main.tsx exists
+    if not FileUtils.exists(main_file) then
+        print("Warning: " .. main_file .. " not found, skipping view registration")
+        return
+    end
+    
+    -- Read current main.tsx content
+    local current_content, err = FileUtils.read_file(main_file)
+    if not current_content then
+        print("Warning: Could not read " .. main_file .. ": " .. (err or "unknown error"))
+        return
+    end
+    
+    -- Generate import lines for each view
+    local new_imports = {}
+    
+    if self:is_valid_action("index", actions) then
+        table.insert(new_imports, '  "' .. view_path .. '/index": () => import("./views/' .. view_path .. '/index.tsx"),')
+    end
+    
+    if self:is_valid_action("show", actions) then
+        table.insert(new_imports, '  "' .. view_path .. '/show": () => import("./views/' .. view_path .. '/show.tsx"),')
+    end
+    
+    if self:is_valid_action("new", actions) then
+        table.insert(new_imports, '  "' .. view_path .. '/new": () => import("./views/' .. view_path .. '/form.tsx"),')
+    end
+    
+    if self:is_valid_action("edit", actions) then
+        table.insert(new_imports, '  "' .. view_path .. '/edit": () => import("./views/' .. view_path .. '/form.tsx"),')
+    end
+    
+    if #new_imports == 0 then
+        return
+    end
+    
+    -- Find the pages object and add new imports
+    local pages_start = string.find(current_content, "const pages = {")
+    if not pages_start then
+        print("Warning: Could not find pages object in " .. main_file)
+        return
+    end
+    
+    -- Find the closing brace of the pages object
+    local pages_end = string.find(current_content, "};", pages_start)
+    if not pages_end then
+        print("Warning: Could not find end of pages object in " .. main_file)
+        return
+    end
+    
+    -- Check if imports already exist
+    local imports_to_add = {}
+    for _, import_line in ipairs(new_imports) do
+        if not string.find(current_content, import_line, 1, true) then
+            table.insert(imports_to_add, import_line)
+        end
+    end
+    
+    if #imports_to_add == 0 then
+        print("✓ Views already registered in " .. main_file)
+        return
+    end
+    
+    -- Insert new imports before the closing brace
+    local before_closing = string.sub(current_content, 1, pages_end - 1)
+    local after_closing = string.sub(current_content, pages_end)
+    
+    local new_content = before_closing .. "\n" .. table.concat(imports_to_add, "\n") .. "\n" .. after_closing
+    
+    -- Write the updated content
+    local success, write_err = FileUtils.write_file(main_file, new_content)
+    if success then
+        print("✓ Added view imports to " .. main_file)
+    else
+        print("✗ Failed to update " .. main_file .. ": " .. (write_err or "unknown error"))
+    end
 end
 
 --- Generate test attributes for controller specs
@@ -97,8 +369,13 @@ function ControllerGenerator.run(parsed_args)
         return false
     end
     
-    -- Parse actions
-    local actions = generator:parse_actions(parsed_args.args)
+    -- Parse actions (check if actions are provided separately, otherwise use args)
+    local actions
+    if parsed_args.actions then
+        actions = generator:parse_actions(parsed_args.actions)
+    else
+        actions = generator:parse_actions(parsed_args.args)
+    end
     
     -- Generate template variables
     local class_name = StringUtils.camelize(controller_name) .. "Controller"
@@ -139,48 +416,19 @@ function ControllerGenerator.run(parsed_args)
     local views_dir = "app/views/" .. view_path
     generator:create_directory(views_dir)
     
-    -- Generate TypeScript interface fields (basic example)
-    local interface_fields = [[  id: number;
-  name: string;
-  created_at: string;
-  updated_at: string;]]
+    -- Parse fields from command line arguments (if provided)
+    local fields
+    if parsed_args.actions then
+        -- If actions are provided separately, args contains field definitions
+        fields = generator:parse_fields(parsed_args.args or {})
+    else
+        -- If no separate actions, args contains actions, so no fields
+        fields = {}
+    end
     
-    local table_headers = [[                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Created</th>]]
-    
-    local table_cells = [[                    <td>{user.id}</td>
-                    <td>{user.name}</td>
-                    <td>{new Date(user.created_at).toLocaleDateString()}</td>]]
-    
-    local detail_fields = [[        <div className="field">
-          <label>ID:</label>
-          <span>{user.id}</span>
-        </div>
-        <div className="field">
-          <label>Name:</label>
-          <span>{user.name}</span>
-        </div>
-        <div className="field">
-          <label>Created:</label>
-          <span>{new Date(user.created_at).toLocaleDateString()}</span>
-        </div>]]
-    
-    local form_fields = [[        <div className="form-group">
-          <label htmlFor="name">Name</label>
-          <input
-            type="text"
-            id="name"
-            value={formData.name || ''}
-            onChange={(e) => handleChange('name', e.target.value)}
-            className={errors.name ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.name && (
-            <div className="invalid-feedback">
-              {errors.name.join(', ')}
-            </div>
-          )}
-        </div>]]
+    -- Generate dynamic content based on fields
+    local interface_fields, table_headers, table_cells, detail_fields, form_fields = 
+        generator:generate_view_content(fields, singular_name)
     
     local view_vars = {
         class_name = model_name,
@@ -210,6 +458,9 @@ function ControllerGenerator.run(parsed_args)
     if generator:is_valid_action("new", actions) or generator:is_valid_action("edit", actions) then
         generator:generate_from_template("view/form.tsx", views_dir .. "/form.tsx", view_vars)
     end
+    
+    -- Update main.tsx with new view imports
+    generator:update_main_tsx_imports(view_path, actions)
     
     generator:show_summary()
     
