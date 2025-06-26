@@ -14,6 +14,9 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    dedupe: ["preact", "preact/hooks"],
+  },
   server: {
     proxy: {
       // Proxy API routes to Lua server
