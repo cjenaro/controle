@@ -1,0 +1,43 @@
+# Lua
+*.lua~
+*.luac
+
+# LuaRocks
+*.rock
+*.src.rock
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+spec/tmp/
+test_*.db
+test_*.sqlite3
+
+# Build artifacts
+build/
+dist/
+
+# Logs
+*.log
+
+# Coverage reports
+luacov.*.out
+luacov.report.out

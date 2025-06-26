@@ -1,25 +1,43 @@
-# Controle - CLI & Code Generators 🛠️
+# Controle - Rails-like CLI & Code Generators 🛠️
 
-You are working on **Controle**, the command-line interface and code generation system for the Foguete framework.
+You are working on **Controle**, the Rails-inspired command-line interface and code generation system for the Foguete framework.
 
 ## Package Purpose
-Controle provides the `fog` CLI tool for project scaffolding, development server, and code generation.
+Controle provides the `fog` CLI tool that closely mirrors Rails CLI functionality, including project scaffolding, development server, database management, and comprehensive code generation with integration across all Foguete packages (Motor, Rota, Comando, Carga, Orbita).
 
 ## Key Responsibilities
-- Project scaffolding (`fog new`)
-- Development server with hot reload (`fog server`)
-- Database migrations (`fog migrate`)
-- Code generators (`fog generate`)
-- Build and deployment tools
-- Project maintenance utilities
+- **Project Management**: `fog new`, `fog server`, `fog console`, `fog version`
+- **Code Generation**: `fog generate model/controller/migration/scaffold` with Carga/Comando integration
+- **Database Management**: `fog db:create/migrate/rollback/seed/reset` with Carga migrations
+- **Development Tools**: Hot reload server, asset compilation, testing utilities
+- **Package Integration**: Seamless integration with Motor (server), Rota (routing), Comando (controllers), Carga (models), Orbita (views)
 
-## Core Commands
-- `fog new <name>` - Create new Foguete project
-- `fog server` - Start development server
-- `fog generate <type> <name>` - Generate code scaffolds
-- `fog migrate` - Run database migrations
-- `fog build` - Build for production
-- `fog console` - Interactive Lua console
+## Core Commands (Rails-like)
+
+### Project Commands
+- `fog new <app_name>` - Create new Foguete application
+- `fog server` - Start development server (Motor + Vite)
+- `fog console` - Interactive console with models loaded
+- `fog version` - Show versions of all Foguete packages
+
+### Generator Commands  
+- `fog generate model <name> [field:type ...]` - Generate Carga model + migration
+- `fog generate controller <name> [action ...]` - Generate Comando controller
+- `fog generate migration <name>` - Generate Carga migration file
+- `fog generate scaffold <name> [field:type ...]` - Generate model + controller + views + migration
+
+### Database Commands
+- `fog db:create` - Create database file
+- `fog db:migrate` - Run pending Carga migrations
+- `fog db:rollback [STEP=n]` - Rollback migrations
+- `fog db:seed` - Run database seeds
+- `fog db:reset` - Drop, create, migrate, and seed
+- `fog db:status` - Show migration status
+
+### Testing Commands
+- `fog test` - Run all tests (busted)
+- `fog test:models` - Run model tests only
+- `fog test:controllers` - Run controller tests only
 
 ## CLI Architecture
 ```lua

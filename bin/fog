@@ -1,0 +1,36 @@
+#!/usr/bin/env lua
+
+-- Fog CLI - Foguete Framework Command Line Interface
+-- This is the main executable that users run
+
+-- Add the controle package to the Lua path if needed
+local function add_to_path()
+    local script_dir = debug.getinfo(1, "S").source:match("@(.*/)") 
+    if script_dir then
+        local controle_path = script_dir .. "../src/?.lua"
+        local controle_init_path = script_dir .. "../src/?/init.lua"
+        package.path = package.path .. ";" .. controle_path .. ";" .. controle_init_path
+    end
+end
+
+-- Always add to path first for development
+add_to_path()
+
+-- Try to load controle
+local ok, controle = pcall(require, "controle")
+if not ok then
+    -- Try loading from init.lua directly
+    controle = require("init")
+end
+
+-- Get command line arguments (skip the script name)
+local args = {}
+for i = 1, #arg do
+    table.insert(args, arg[i])
+end
+
+-- Run the CLI
+local success = controle.run(args)
+
+-- Exit with appropriate code
+os.exit(success and 0 or 1)
