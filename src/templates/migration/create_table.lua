@@ -7,7 +7,7 @@ function migration.up(db)
     db.execute([[
         CREATE TABLE {{table_name}} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-{{table_fields}}
+{{table_fields}},
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )

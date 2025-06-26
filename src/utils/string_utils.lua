@@ -49,7 +49,65 @@ end
 --- @param str string Singular string
 --- @return string pluralized Plural string
 function StringUtils.pluralize(str)
-    if str:match("s$") or str:match("sh$") or str:match("ch$") or str:match("x$") or str:match("z$") then
+    -- Common irregular plurals
+    local irregulars = {
+        child = "children",
+        person = "people",
+        man = "men",
+        woman = "women",
+        tooth = "teeth",
+        foot = "feet",
+        mouse = "mice",
+        goose = "geese"
+    }
+    
+    if irregulars[str] then
+        return irregulars[str]
+    end
+    
+    -- Words that are already plural (common cases)
+    local already_plural = {
+        "children", "people", "men", "women", "teeth", "feet", "mice", "geese",
+        "sheep", "deer", "fish", "species", "series", "data", "information"
+    }
+    
+    for _, plural in ipairs(already_plural) do
+        if str == plural then
+            return str
+        end
+    end
+    
+    -- Check if word might already be plural by checking common plural patterns
+    if str:match("ies$") or str:match("ves$") or str:match("ses$") or 
+       str:match("shes$") or str:match("ches$") or str:match("xes$") or str:match("zes$") then
+        return str -- Already plural
+    end
+    
+    -- Special case: if word ends with 's' but not 'ss', it might already be plural
+    -- Common exceptions: words that naturally end in 's' but are singular
+    local singular_s_words = {
+        "class", "glass", "pass", "mass", "grass", "bass", "loss", "boss", 
+        "cross", "dress", "stress", "press", "process", "address", "access",
+        "business", "witness", "fitness", "illness", "success", "progress"
+    }
+    
+    local is_singular_s_word = false
+    for _, word in ipairs(singular_s_words) do
+        if str == word then
+            is_singular_s_word = true
+            break
+        end
+    end
+    
+    -- Apply pluralization rules
+    if str:match("s$") and not str:match("ss$") and not is_singular_s_word then
+        -- Likely already plural, but check for common patterns
+        if str:match("us$") then
+            return str:gsub("us$", "i") -- radius -> radii, but this is rare
+        else
+            return str -- Assume already plural
+        end
+    elseif str:match("ss$") or str:match("sh$") or str:match("ch$") or str:match("x$") or str:match("z$") or is_singular_s_word then
         return str .. "es"
     elseif str:match("y$") and not str:match("[aeiou]y$") then
         return str:gsub("y$", "ies")
