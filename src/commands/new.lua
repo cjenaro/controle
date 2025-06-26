@@ -314,8 +314,9 @@ end
 
 -- Demo greeting action
 function ApplicationController:greet()
-    local name = self.request.body and self.request.body.name or "Anonymous"
-    
+    local data = self:request_data()
+    local name = data.name or "Anon"
+ 
     return self:render_orbita("home/index", {
         title = "Welcome to {{app_name}}",
         message = "Your Foguete application is running!",
@@ -651,4 +652,3 @@ function NewCommand.run(parsed_args)
 end
 
 return NewCommand
-
