@@ -1,4 +1,5 @@
 import { createOrbitaApp } from "@foguete/orbita";
+import "./app.css";
 
 const pages = {
   "home/index": () => import("./views/home/index.tsx"),
