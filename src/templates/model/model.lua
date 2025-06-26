@@ -4,7 +4,7 @@ local carga = require("carga")
 --- @class {{class_name}} : Model
 --- @field id number Primary key
 {{field_declarations}}
-local {{class_name}} = carga.Model:extend("{{table_name}}")
+local {{class_name}} = carga.Model:extend("{{class_name}}", "{{table_name}}")
 
 -- Define schema
 {{class_name}}.schema = {
