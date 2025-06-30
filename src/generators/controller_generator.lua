@@ -93,10 +93,163 @@ function ControllerGenerator:lua_to_typescript_type(lua_type)
     return type_map[lua_type] or "string"
 end
 
+--- Generate Zod schema fields for form validation
+--- @param fields table<number, table> Parsed field definitions
+--- @return string, string Schema fields and form schema fields
+function ControllerGenerator:generate_zod_schemas(fields)
+    local schema_parts = {"  id: z.number(),"}
+    local form_schema_parts = {}
+    
+    for _, field in ipairs(fields) do
+        local field_name = field.name
+        local zod_type
+        
+        if field.type == "string" or field.type == "text" then
+            zod_type = "z.string()"
+            table.insert(form_schema_parts, "  " .. field_name .. ": z.string().check(z.minLength(1, \"" .. StringUtils.titleize(field_name) .. " is required\")),")
+        elseif field.type == "integer" or field.type == "number" then
+            zod_type = "z.number()"
+            table.insert(form_schema_parts, "  " .. field_name .. ": z.number(),")
+        elseif field.type == "boolean" then
+            zod_type = "z.boolean()"
+            table.insert(form_schema_parts, "  " .. field_name .. ": z.optional(z.string()), // HTML checkboxes send strings or undefined")
+        else
+            zod_type = "z.string()"
+            table.insert(form_schema_parts, "  " .. field_name .. ": z.string(),")
+        end
+        
+        table.insert(schema_parts, "  " .. field_name .. ": " .. zod_type .. ",")
+    end
+    
+    -- Add timestamps
+    table.insert(schema_parts, "  created_at: z.string(),")
+    table.insert(schema_parts, "  updated_at: z.string(),")
+    
+    return table.concat(schema_parts, "\n"), table.concat(form_schema_parts, "\n")
+end
+
+--- Generate form data mapping for useForm
+--- @param fields table<number, table> Parsed field definitions
+--- @param singular_name string Singular model name
+--- @return string Form data mapping
+function ControllerGenerator:generate_form_data_mapping(fields, singular_name)
+    local mapping_parts = {}
+    
+    for _, field in ipairs(fields) do
+        local field_name = field.name
+        if field.type == "boolean" then
+            table.insert(mapping_parts, "          " .. field_name .. ": !!formData." .. field_name .. ", // Convert to boolean")
+        else
+            table.insert(mapping_parts, "          " .. field_name .. ": formData." .. field_name .. ",")
+        end
+    end
+    
+    return table.concat(mapping_parts, "\n")
+end
+
+--- Generate useForm-compatible form fields
+--- @param fields table<number, table> Parsed field definitions
+--- @param singular_name string Singular model name
+--- @return string Form fields
+function ControllerGenerator:generate_useform_fields(fields, singular_name)
+    local form_parts = {}
+    
+    for _, field in ipairs(fields) do
+        local field_name = field.name
+        local field_title = StringUtils.titleize(field_name)
+        local input_type = "text"
+        
+        if field.type == "integer" or field.type == "number" or field.type == "float" then
+            input_type = "number"
+        elseif field.type == "boolean" then
+            input_type = "checkbox"
+        elseif field.type == "date" then
+            input_type = "date"
+        elseif field.type == "datetime" then
+            input_type = "datetime-local"
+        elseif field.type == "text" then
+            input_type = "textarea"
+        end
+        
+        local form_field
+        if input_type == "textarea" then
+            form_field = [[                <div>
+                  <label
+                    htmlFor="]] .. field_name .. [["
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    ]] .. field_title .. [[
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="]] .. field_name .. [["
+                      rows={3}
+                      {...form.getFieldProps("]] .. field_name .. [[")}
+                      defaultValue={]] .. singular_name .. [[.]] .. field_name .. [[ || ""}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                  </div>
+                  {(form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[) && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[?.join(", ")}
+                    </p>
+                  )}
+                </div>]]
+        elseif input_type == "checkbox" then
+            form_field = [[                <div className="flex items-center">
+                  <input
+                    id="]] .. field_name .. [["
+                    type="checkbox"
+                    {...form.getFieldProps("]] .. field_name .. [[")}
+                    defaultChecked={]] .. singular_name .. [[.]] .. field_name .. [[ || false}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label
+                    htmlFor="]] .. field_name .. [["
+                    className="ml-2 block text-sm text-gray-900"
+                  >
+                    ]] .. field_title .. [[
+                  </label>
+                  {(form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[) && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[?.join(", ")}
+                    </p>
+                  )}
+                </div>]]
+        else
+            form_field = [[                <div>
+                  <label
+                    htmlFor="]] .. field_name .. [["
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    ]] .. field_title .. [[
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      type="]] .. input_type .. [["
+                      id="]] .. field_name .. [["
+                      {...form.getFieldProps("]] .. field_name .. [[")}
+                      defaultValue={]] .. singular_name .. [[.]] .. field_name .. [[ || ""}
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                  </div>
+                  {(form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[) && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {form.errors.]] .. field_name .. [[ || errors.]] .. field_name .. [[?.join(", ")}
+                    </p>
+                  )}
+                </div>]]
+        end
+        table.insert(form_parts, form_field)
+    end
+    
+    return table.concat(form_parts, "\n")
+end
+
 --- Generate view content based on fields
 --- @param fields table<number, table> Parsed field definitions
 --- @param singular_name string Singular model name
---- @return string, string, string, string, string interface_fields, table_headers, table_cells, detail_fields, form_fields
+--- @return string, string, string, string, string, string, string, string interface_fields, table_headers, table_cells, detail_fields, form_fields, schema_fields, form_schema_fields, form_data_mapping
 function ControllerGenerator:generate_view_content(fields, singular_name)
     local interface_parts = {"  id: number;"}
     local header_parts = {"                    <th scope=\"col\" className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">ID</th>"}
@@ -232,11 +385,20 @@ function ControllerGenerator:generate_view_content(fields, singular_name)
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(]] .. singular_name .. [[.updated_at).toLocaleDateString()}</dd>
               </div>]])
     
+    -- Generate new form content
+    local schema_fields, form_schema_fields = self:generate_zod_schemas(fields)
+    local form_data_mapping = self:generate_form_data_mapping(fields, singular_name)
+    local useform_fields = self:generate_useform_fields(fields, singular_name)
+    
     return table.concat(interface_parts, "\n"),
            table.concat(header_parts, "\n"),
            table.concat(cell_parts, "\n"),
            table.concat(detail_parts, "\n"),
-           table.concat(form_parts, "\n")
+           table.concat(form_parts, "\n"),
+           schema_fields,
+           form_schema_fields,
+           form_data_mapping,
+           useform_fields
 end
 
 --- Update main.tsx with new view imports
@@ -427,7 +589,7 @@ function ControllerGenerator.run(parsed_args)
     end
     
     -- Generate dynamic content based on fields
-    local interface_fields, table_headers, table_cells, detail_fields, form_fields = 
+    local interface_fields, table_headers, table_cells, detail_fields, form_fields, schema_fields, form_schema_fields, form_data_mapping, useform_fields = 
         generator:generate_view_content(fields, singular_name)
     
     local view_vars = {
@@ -443,7 +605,10 @@ function ControllerGenerator.run(parsed_args)
         table_headers = table_headers,
         table_cells = table_cells,
         detail_fields = detail_fields,
-        form_fields = form_fields
+        form_fields = useform_fields or form_fields,
+        schema_fields = schema_fields,
+        form_schema_fields = form_schema_fields,
+        form_data_mapping = form_data_mapping
     }
     
     -- Generate view files if actions include them

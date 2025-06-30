@@ -1,9 +1,17 @@
-import { useState } from 'preact/hooks';
-import { Link } from "@foguete/orbita";
+import { Link, useForm, zodAdapter, router } from "@foguete/orbita";
+import { z } from "zod/v4-mini";
 
-interface {{class_name}} {
-{{interface_fields}}
-}
+const {{class_name}}Schema = z.object({
+{{schema_fields}}
+});
+
+// Form-specific schema for validation
+const {{class_name}}FormSchema = z.object({
+{{form_schema_fields}}
+});
+
+type {{class_name}} = z.infer<typeof {{class_name}}Schema>;
+type {{class_name}}FormData = z.infer<typeof {{class_name}}FormSchema>;
 
 interface {{class_name}}FormProps {
   {{singular_name}}: Partial<{{class_name}}>;
@@ -11,36 +19,36 @@ interface {{class_name}}FormProps {
   isEdit?: boolean;
 }
 
-export default function {{class_name}}Form({ {{singular_name}}, errors = {}, isEdit = false }: {{class_name}}FormProps) {
-  const [formData, setFormData] = useState({{singular_name}});
-  
-  const handleSubmit = (e: Event) => {
-    e.preventDefault();
-    
-    const url = isEdit ? `/{{route_path}}/${{{singular_name}}.id}` : '/{{route_path}}';
-    const method = isEdit ? 'PUT' : 'POST';
-    
-    fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ {{singular_name}}: formData }),
-    }).then(response => {
-      if (response.ok) {
-        window.location.href = isEdit ? `/{{route_path}}/${{{singular_name}}.id}` : '/{{route_path}}';
-      } else {
-        // Handle validation errors
-        response.json().then(data => {
-          // Update errors state
-        });
+export default function {{class_name}}Form({
+  {{singular_name}},
+  errors = {},
+  isEdit = false,
+}: {{class_name}}FormProps) {
+  const form = useForm<{{class_name}}FormData>({
+    adapter: zodAdapter({{class_name}}FormSchema),
+    onSubmit: async (values) => {
+      const formData = values;
+      const url = isEdit ? `/{{route_path}}/${{{singular_name}}.id}` : "/{{route_path}}";
+
+      // Convert form values to proper types
+      const {{singular_name}}Data = {
+        {{singular_name}}: {
+{{form_data_mapping}}
+        },
+      };
+
+      try {
+        if (isEdit) {
+          await router.put(url, {{singular_name}}Data, { preserveUrl: false });
+        } else {
+          await router.post(url, {{singular_name}}Data, { preserveUrl: false });
+        }
+      } catch (error) {
+        console.error("Form submission error:", error);
+        throw error; // Re-throw to let useForm handle the error state
       }
-    });
-  };
-  
-  const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+    },
+  });
   
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -72,13 +80,13 @@ export default function {{class_name}}Form({ {{singular_name}}, errors = {}, isE
 
         {/* Form */}
         <div className="bg-white shadow sm:rounded-lg">
-          <form onSubmit={handleSubmit}>
+          <form {...form.formProps}>
             <div className="px-4 py-5 sm:p-6">
               <div className="space-y-6">
 {{form_fields}}
               </div>
             </div>
-            
+
             <div className="px-4 py-3 bg-gray-50 text-right sm:px-6 flex justify-end space-x-3">
               <Link
                 href="/{{route_path}}"
@@ -88,9 +96,14 @@ export default function {{class_name}}Form({ {{singular_name}}, errors = {}, isE
               </Link>
               <button
                 type="submit"
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                disabled={form.processing}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                {isEdit ? 'Update' : 'Create'} {{singular_title}}
+                {form.processing
+                  ? isEdit
+                    ? "Updating..."
+                    : "Creating..."
+                  : (isEdit ? "Update" : "Create") + " {{singular_title}}"}
               </button>
             </div>
           </form>

@@ -42,7 +42,4 @@ build = {
          fog = "bin/fog"
       }
    },
-   copy_directories = {
-      "src/templates"
-   }
 }

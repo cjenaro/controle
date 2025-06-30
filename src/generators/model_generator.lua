@@ -57,14 +57,14 @@ end
 
 --- Get default validation for field type
 --- @param field_type string Field type
---- @return string|nil Validation rule
+--- @return table|nil Validation rule
 function ModelGenerator:get_default_validation(field_type)
     local validations = {
-        string = "required",
-        text = "required",
-        integer = "required, numeric",
-        number = "required, numeric",
-        boolean = "boolean"
+        string = { required = true, type = "string" },
+        text = { required = true, type = "string" },
+        integer = { required = true, type = "number" },
+        number = { required = true, type = "number" },
+        boolean = { type = "boolean" }
     }
     
     return validations[field_type]
@@ -106,7 +106,17 @@ function ModelGenerator:generate_validations(fields, class_name)
     
     for _, field in ipairs(fields) do
         if field.validation then
-            local validation = string.format('    %s = "%s"', field.name, field.validation)
+            local validation_parts = {}
+            for key, value in pairs(field.validation) do
+                if type(value) == "boolean" then
+                    table.insert(validation_parts, string.format("%s = %s", key, tostring(value)))
+                elseif type(value) == "string" then
+                    table.insert(validation_parts, string.format('%s = "%s"', key, value))
+                else
+                    table.insert(validation_parts, string.format("%s = %s", key, tostring(value)))
+                end
+            end
+            local validation = string.format('    %s = { %s }', field.name, table.concat(validation_parts, ", "))
             table.insert(validations, validation)
         end
     end

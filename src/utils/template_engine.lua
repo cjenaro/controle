@@ -163,11 +163,41 @@ end
 
 -- Get template path relative to controle package
 function TemplateEngine.get_template_path(template_name)
-    -- Try to find the controle package directory
+    -- Try to find the controle package directory by looking for the current file
+    local info = debug.getinfo(1, "S")
+    if info and info.source then
+        local current_file = info.source:match("^@(.+)$")
+        if current_file then
+            -- Navigate from current file to templates directory
+            local controle_src = current_file:match("(.+)/utils/template_engine%.lua$")
+            if controle_src then
+                local template_path = FileUtils.join_path(controle_src, "templates", template_name)
+                if FileUtils.exists(template_path) then
+                    return template_path
+                end
+            end
+        end
+    end
+    
+    -- Try to find templates in the current working directory (development mode)
+    local dev_template_path = FileUtils.join_path("controle", "src", "templates", template_name)
+    if FileUtils.exists(dev_template_path) then
+        return dev_template_path
+    end
+    
+    -- Try to find the controle package directory in package.path
     local controle_path = package.path:match("([^;]+controle[^;]*)")
     if controle_path then
         local base_path = controle_path:gsub("/src/%?%.lua", "")
-        return FileUtils.join_path(base_path, "src", "templates", template_name)
+        local template_path = FileUtils.join_path(base_path, "templates", template_name)
+        if FileUtils.exists(template_path) then
+            return template_path
+        end
+        -- Also try src/templates for development
+        template_path = FileUtils.join_path(base_path, "src", "templates", template_name)
+        if FileUtils.exists(template_path) then
+            return template_path
+        end
     end
     
     -- Fallback to relative path
