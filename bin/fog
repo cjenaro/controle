@@ -19,8 +19,13 @@ add_to_path()
 -- Try to load controle
 local ok, controle = pcall(require, "controle")
 if not ok then
-    -- Try loading from init.lua directly
-    controle = require("init")
+    -- Try loading from src/init.lua for development
+    local dev_ok, dev_controle = pcall(require, "src.init")
+    if dev_ok then
+        controle = dev_controle
+    else
+        error("Could not load controle module. Make sure controle is installed or you're running from the development directory.\nError: " .. tostring(controle))
+    end
 end
 
 -- Get command line arguments (skip the script name)

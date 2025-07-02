@@ -86,26 +86,38 @@ local rota = require("rota")
 local carga = require("carga")
 local orbita = require("orbita")
 
+-- Detect environment early
+local env = os.getenv("FOGUETE_ENV") or "development"
+
 -- Load application configuration
-require("config.application")
+local config = require("config.application")
 
 -- Initialize database
-carga.Database.connect("db/{{underscore_name}}.db")
+carga.configure({
+    database_path = config.database.path,
+})
 
 -- Configure Orbita
 orbita.configure({
     root_template = "app",
     asset_version = "1.0.0",
-    app_js_path = "/app/main.tsx"
+    app_js_path = "/app/main.tsx",
 })
 
 -- Create router
 local router = rota.new()
 
+-- Enable hot reload mode in development BEFORE loading routes
+if env == "development" then
+    router:enable_hot_reload()
+end
+
 -- Load routes
 require("config.routes")(router)
 
 -- Request handler
+---@param request motor.HttpRequest
+---@return motor.HttpResponse
 local function handle_request(request)
     print("📥 " .. request.method .. " " .. request.path)
     
@@ -115,7 +127,7 @@ local function handle_request(request)
         return {
             status = 404,
             headers = { ["Content-Type"] = "text/html" },
-            body = "<h1>404 - Page Not Found</h1><p>Path: " .. request.path .. "</p>"
+            body = "<h1>404 - Page Not Found</h1><p>Path: " .. request.path .. "</p>",
         }
     end
     
@@ -128,11 +140,22 @@ local host = os.getenv("HOST") or "127.0.0.1"
 
 print("🚀 Starting {{app_name}} server...")
 print("🌐 Visit: http://" .. host .. ":" .. port)
+print("🔧 Environment: " .. env)
 
-motor.serve({
+---@type motor.MotorConfig
+local server_config = {
     host = host,
-    port = port
-}, handle_request)
+    port = port,
+}
+
+-- Enable hot reload in development
+if env == "development" then
+    server_config.hot_reload = true
+    server_config.hot_reload_app_root = "."
+    print("🔥 Hot reload enabled for development")
+end
+
+motor.serve(server_config, handle_request)
 ]]
 
 	local context = {
@@ -209,8 +232,7 @@ return function(router)
     
     -- Add your routes here
     -- Example:
-    -- local users_controller = require("app.controllers.users_controller")
-    -- router:resources("users", users_controller)
+    -- router:resources("users", "app.controllers.users_controller")
 end
 ]]
 
@@ -298,6 +320,8 @@ setmetatable(ApplicationController, BaseController)
 -- Extend BaseController with Orbita methods
 ApplicationController = orbita.extend_controller(ApplicationController)
 
+---@param request motor.HttpRequest
+---@return ApplicationController
 function ApplicationController:new(request)
     local controller = BaseController:new(request)
     setmetatable(controller, self)
@@ -305,6 +329,7 @@ function ApplicationController:new(request)
 end
 
 -- Default index action
+---@return motor.HttpResponse
 function ApplicationController:index()
     return self:render_orbita("home/index", {
         title = "Welcome to {{app_name}}",
@@ -313,6 +338,7 @@ function ApplicationController:index()
 end
 
 -- Demo greeting action
+---@return motor.HttpResponse
 function ApplicationController:greet()
     local data = self:request_data()
     local name = data.name or "Anon"
@@ -367,10 +393,6 @@ function NewCommand.create_package_json(app_name)
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "@tailwindcss/vite": "^4.1.6",
-    "eslint": "^8.0.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint-config-preact": "^1.3.0",
     "tailwindcss": "^4.1.6",
     "typescript": "^5.0.0",
     "vite": "^5.0.0"
@@ -549,11 +571,11 @@ MIT License
 	-- Home view
 	local home_index = TemplateEngine.load_template(TemplateEngine.get_template_path("application/home_index.tsx"))
 
-	-- ESLint configuration
-	local eslintrc = TemplateEngine.load_template(TemplateEngine.get_template_path("application/eslintrc.json"))
-
 	-- CSS file
 	local app_css = TemplateEngine.load_template(TemplateEngine.get_template_path("application/app.css"))
+
+	-- Biome configuration
+	local biome_config = TemplateEngine.load_template(TemplateEngine.get_template_path("application/biome.json"))
 
 	-- index.html
 	local index_html = [[<!doctype html>
@@ -579,10 +601,10 @@ MIT License
 		{ path = "index.html", content = index_html },
 		{ path = "vite.config.js", content = vite_config or "" },
 		{ path = "tsconfig.json", content = tsconfig or "" },
+		{ path = "biome.json", content = biome_config or "" },
 		{ path = "app/main.tsx", content = main_tsx or "" },
 		{ path = "app/app.css", content = app_css or "" },
 		{ path = "app/views/home/index.tsx", content = home_index or "" },
-		{ path = ".eslintrc.json", content = eslintrc or "" },
 	}
 
 	for _, file in ipairs(files) do

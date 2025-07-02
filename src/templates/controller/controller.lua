@@ -11,6 +11,8 @@ setmetatable({{class_name}}, BaseController)
 -- Extend BaseController with Orbita methods
 {{class_name}} = orbita.extend_controller({{class_name}})
 
+---@param request motor.HttpRequest
+---@return {{class_name}}
 function {{class_name}}:new(request)
     local controller = BaseController:new(request)
     setmetatable(controller, self)
@@ -18,6 +20,7 @@ function {{class_name}}:new(request)
 end
 
 -- GET /{{route_path}}
+---@return motor.HttpResponse
 function {{class_name}}:index()
     local {{plural_name}} = {{model_name}}:all()
     
@@ -27,6 +30,7 @@ function {{class_name}}:index()
 end
 
 -- GET /{{route_path}}/:id
+---@return motor.HttpResponse
 function {{class_name}}:show()
     local {{singular_name}} = {{model_name}}:find(self.params.id)
     
@@ -40,6 +44,7 @@ function {{class_name}}:show()
 end
 
 -- GET /{{route_path}}/new
+---@return motor.HttpResponse
 function {{class_name}}:new_action()
     local {{singular_name}} = {{model_name}}:new()
     
@@ -49,6 +54,7 @@ function {{class_name}}:new_action()
 end
 
 -- POST /{{route_path}}
+---@return motor.HttpResponse
 function {{class_name}}:create()
     local data = self:request_data()
     local {{singular_name}} = {{model_name}}:new(data.{{singular_name}})
@@ -64,6 +70,7 @@ function {{class_name}}:create()
 end
 
 -- GET /{{route_path}}/:id/edit
+---@return motor.HttpResponse
 function {{class_name}}:edit()
     local {{singular_name}} = {{model_name}}:find(self.params.id)
     
@@ -77,6 +84,7 @@ function {{class_name}}:edit()
 end
 
 -- PUT /{{route_path}}/:id
+---@return motor.HttpResponse
 function {{class_name}}:update()
     local {{singular_name}} = {{model_name}}:find(self.params.id)
     
@@ -96,6 +104,7 @@ function {{class_name}}:update()
 end
 
 -- DELETE /{{route_path}}/:id
+---@return motor.HttpResponse
 function {{class_name}}:destroy()
     local {{singular_name}} = {{model_name}}:find(self.params.id)
     

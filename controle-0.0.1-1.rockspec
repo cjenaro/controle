@@ -37,6 +37,9 @@ build = {
       ["controle.utils.string_utils"] = "src/utils/string_utils.lua",
       ["controle.utils.template_engine"] = "src/utils/template_engine.lua"
    },
+   copy_directories = {
+      "src/templates"
+   },
    install = {
       bin = {
          fog = "bin/fog"

@@ -77,7 +77,17 @@ function ModelGenerator:generate_field_declarations(fields)
     local declarations = {}
     
     for _, field in ipairs(fields) do
-        table.insert(declarations, string.format("--- @field %s %s", field.name, field.type))
+        -- Map database types to Lua types for type annotations
+        local lua_type = field.type
+        if field.type == "text" then
+            lua_type = "string"
+        elseif field.type == "integer" then
+            lua_type = "number"
+        elseif field.type == "datetime" then
+            lua_type = "string"  -- Datetime is typically stored as string in Lua
+        end
+        
+        table.insert(declarations, string.format("--- @field %s %s", field.name, lua_type))
     end
     
     return table.concat(declarations, "\n")

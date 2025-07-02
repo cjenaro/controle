@@ -124,7 +124,39 @@ end
 --- @param str string Plural string
 --- @return string singularized Singular string
 function StringUtils.singularize(str)
+    -- Common irregular plurals (reverse mapping)
+    local irregulars = {
+        children = "child",
+        people = "person",
+        men = "man",
+        women = "woman",
+        teeth = "tooth",
+        feet = "foot",
+        mice = "mouse",
+        geese = "goose"
+    }
+    
+    if irregulars[str] then
+        return irregulars[str]
+    end
+    
+    -- Handle "ies" endings:
     if str:match("ies$") then
+        -- Special cases that should just remove "s" (not replace "ies" with "y")
+        local special_cases = {
+            "vies$",  -- movies -> movie
+            "kies$",  -- cookies -> cookie  
+            "gies$",  -- doggies -> doggie
+            "nies$",  -- bunnies -> bunnie (though "bunny" is more common)
+        }
+        
+        for _, pattern in ipairs(special_cases) do
+            if str:match(pattern) then
+                return str:gsub("s$", "")
+            end
+        end
+        
+        -- Default case: consonant + y -> ies, so replace "ies" with "y"
         return str:gsub("ies$", "y")
     elseif str:match("ves$") then
         return str:gsub("ves$", "f")

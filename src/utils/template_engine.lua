@@ -163,6 +163,18 @@ end
 
 -- Get template path relative to controle package
 function TemplateEngine.get_template_path(template_name)
+    -- Try to find templates in the current working directory first (development mode)
+    local dev_template_path = FileUtils.join_path("controle", "src", "templates", template_name)
+    if FileUtils.exists(dev_template_path) then
+        return dev_template_path
+    end
+    
+    -- Try parent directory (when running from subdirectory like testing/)
+    local parent_dev_template_path = FileUtils.join_path("..", "controle", "src", "templates", template_name)
+    if FileUtils.exists(parent_dev_template_path) then
+        return parent_dev_template_path
+    end
+    
     -- Try to find the controle package directory by looking for the current file
     local info = debug.getinfo(1, "S")
     if info and info.source then
@@ -179,24 +191,23 @@ function TemplateEngine.get_template_path(template_name)
         end
     end
     
-    -- Try to find templates in the current working directory (development mode)
-    local dev_template_path = FileUtils.join_path("controle", "src", "templates", template_name)
-    if FileUtils.exists(dev_template_path) then
-        return dev_template_path
-    end
-    
-    -- Try to find the controle package directory in package.path
-    local controle_path = package.path:match("([^;]+controle[^;]*)")
-    if controle_path then
-        local base_path = controle_path:gsub("/src/%?%.lua", "")
-        local template_path = FileUtils.join_path(base_path, "templates", template_name)
-        if FileUtils.exists(template_path) then
-            return template_path
-        end
-        -- Also try src/templates for development
-        template_path = FileUtils.join_path(base_path, "src", "templates", template_name)
-        if FileUtils.exists(template_path) then
-            return template_path
+    -- Try to find the controle package in LuaRocks installation
+    for path in package.path:gmatch("([^;]+)") do
+        if path:match("controle") then
+            -- Extract the base path from the controle package path
+            local base_path = path:gsub("/%?%.lua", "")
+            
+            -- Try LuaRocks templates directory (copy_directories approach)
+            local luarocks_template_path = path:gsub("/share/lua/5%.4/%?%.lua", "/lib/luarocks/rocks-5.4/controle/0.0.1-1/src/templates/" .. template_name)
+            if FileUtils.exists(luarocks_template_path) then
+                return luarocks_template_path
+            end
+            
+            -- Try src/templates for development
+            local src_template_path = FileUtils.join_path(base_path, "src", "templates", template_name)
+            if FileUtils.exists(src_template_path) then
+                return src_template_path
+            end
         end
     end
     
