@@ -1,14 +1,20 @@
 -- Migration: {{migration_name}}
 -- Created: {{timestamp}}
 
-local migration = {}
-
-function migration.up(db)
-{{add_columns}}
-end
-
-function migration.down(db)
-{{remove_columns}}
-end
-
-return migration
+return {
+    up = function(db)
+        -- Model-based approach (recommended):
+{{model_add_columns}}
+        
+        -- Traditional SQL approach (alternative):
+{{add_columns_commented}}
+    end,
+    
+    down = function(db)
+        -- Model-based approach (recommended):
+{{model_remove_columns}}
+        
+        -- Traditional SQL approach (alternative):
+{{remove_columns_commented}}
+    end
+}

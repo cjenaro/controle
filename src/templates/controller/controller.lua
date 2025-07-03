@@ -1,6 +1,7 @@
 -- {{class_name}} controller
 local BaseController = require("comando")
 local orbita = require("orbita")
+---@type {{model_name}}
 local {{model_name}} = require("app.models.{{model_file}}")
 
 --- @class {{class_name}} : BaseController

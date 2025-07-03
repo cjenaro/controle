@@ -81,84 +81,37 @@ end
 function DbCommand.run_migrations()
     print("Running database migrations...")
     
-    -- Check if migrations directory exists
-    if not FileUtils.is_directory("db/migrate") then
-        print("No migrations directory found (db/migrate)")
-        return true
-    end
-    
     -- Initialize database
     if not DbCommand.create_database() then
         return false
     end
     
-    -- Find migration files
-    local migration_files = FileUtils.find_files("db/migrate", "%.lua$")
-    table.sort(migration_files)
-    
-    if #migration_files == 0 then
-        print("No migration files found")
-        return true
-    end
-    
-    -- Load Carga
+    -- Load Carga and Migration module
     local ok, carga = pcall(require, "carga")
     if not ok then
         print("Error: Carga package not found")
         return false
     end
     
-    -- Create schema_migrations table if it doesn't exist
-    carga.Database.execute([[
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-            version TEXT PRIMARY KEY,
-            migrated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ]])
-    
-    -- Get already migrated versions
-    local migrated_result = carga.Database.query("SELECT version FROM schema_migrations")
-    local migrated_versions = {}
-    for _, row in ipairs(migrated_result.rows) do
-        migrated_versions[row.version] = true
+    local migration_ok, Migration = pcall(require, "carga.src.migration")
+    if not migration_ok then
+        print("Error: Carga Migration module not found")
+        return false
     end
     
-    -- Run pending migrations
-    local migrations_run = 0
-    for _, migration_file in ipairs(migration_files) do
-        local version = FileUtils.get_basename(migration_file)
-        
-        if not migrated_versions[version] then
-            print("Running migration: " .. version)
-            
-            -- Load and run migration
-            local migration_path = migration_file:gsub("%.lua$", ""):gsub("/", ".")
-            local migration_ok, migration = pcall(require, migration_path)
-            
-            if migration_ok and migration.up then
-                local success, err = pcall(migration.up, carga.Database)
-                if success then
-                    -- Mark as migrated
-                    carga.Database.execute(
-                        "INSERT INTO schema_migrations (version) VALUES (?)",
-                        { version }
-                    )
-                    migrations_run = migrations_run + 1
-                else
-                    print("Error running migration " .. version .. ": " .. tostring(err))
-                    return false
-                end
-            else
-                print("Error loading migration " .. version)
-                return false
-            end
-        end
-    end
+    -- Configure migration system
+    Migration.configure({
+        migrations_path = "db/migrate"
+    })
     
-    if migrations_run == 0 then
-        print("No pending migrations")
-    else
-        print("Ran " .. migrations_run .. " migrations")
+    -- Run migrations using Carga's migration system
+    local success, err = pcall(function()
+        Migration.migrate()
+    end)
+    
+    if not success then
+        print("Error running migrations: " .. tostring(err))
+        return false
     end
     
     return true
@@ -166,7 +119,6 @@ end
 
 function DbCommand.rollback_migrations(step)
     step = step or 1
-    print("Rolling back " .. step .. " migration(s)...")
     
     -- Initialize database
     local ok, carga = pcall(require, "carga")
@@ -175,54 +127,32 @@ function DbCommand.rollback_migrations(step)
         return false
     end
     
+    local migration_ok, Migration = pcall(require, "carga.src.migration")
+    if not migration_ok then
+        print("Error: Carga Migration module not found")
+        return false
+    end
+    
+    -- Configure migration system
+    Migration.configure({
+        migrations_path = "db/migrate"
+    })
+    
+    -- Connect to database
     carga.Database.connect(DbCommand.get_database_path())
     
-    -- Get migrated versions in reverse order
-    local migrated_result = carga.Database.query(
-        "SELECT version FROM schema_migrations ORDER BY migrated_at DESC LIMIT ?",
-        { step }
-    )
+    -- Rollback migrations using Carga's migration system
+    local success, err = pcall(function()
+        for i = 1, step do
+            Migration.rollback()
+        end
+    end)
     
-    if #migrated_result.rows == 0 then
-        print("No migrations to rollback")
-        return true
+    if not success then
+        print("Error rolling back migrations: " .. tostring(err))
+        return false
     end
     
-    -- Rollback migrations
-    for _, row in ipairs(migrated_result.rows) do
-        local version = row.version
-        print("Rolling back migration: " .. version)
-        
-        -- Find migration file
-        local migration_file = "db/migrate/" .. version .. ".lua"
-        if not FileUtils.exists(migration_file) then
-            print("Warning: Migration file not found: " .. migration_file)
-        else
-        
-        -- Load and run down migration
-        local migration_path = migration_file:gsub("%.lua$", ""):gsub("/", ".")
-        local migration_ok, migration = pcall(require, migration_path)
-        
-        if migration_ok and migration.down then
-            local success, err = pcall(migration.down, carga.Database)
-            if success then
-                -- Remove from schema_migrations
-                carga.Database.execute(
-                    "DELETE FROM schema_migrations WHERE version = ?",
-                    { version }
-                )
-            else
-                print("Error rolling back migration " .. version .. ": " .. tostring(err))
-                return false
-            end
-        else
-            print("Error: Migration " .. version .. " has no down method")
-            return false
-        end
-        end
-    end
-    
-    print("Rollback completed")
     return true
 end
 
@@ -291,9 +221,6 @@ function DbCommand.reset_database()
 end
 
 function DbCommand.show_status()
-    print("Migration Status:")
-    print("================")
-    
     -- Initialize database
     local ok, carga = pcall(require, "carga")
     if not ok then
@@ -301,28 +228,28 @@ function DbCommand.show_status()
         return false
     end
     
+    local migration_ok, Migration = pcall(require, "carga.src.migration")
+    if not migration_ok then
+        print("Error: Carga Migration module not found")
+        return false
+    end
+    
+    -- Configure migration system
+    Migration.configure({
+        migrations_path = "db/migrate"
+    })
+    
+    -- Connect to database
     carga.Database.connect(DbCommand.get_database_path())
     
-    -- Get migrated versions
-    local migrated_result = carga.Database.query("SELECT version FROM schema_migrations ORDER BY version")
-    local migrated_versions = {}
-    for _, row in ipairs(migrated_result.rows) do
-        migrated_versions[row.version] = true
-    end
+    -- Show status using Carga's migration system
+    local success, err = pcall(function()
+        Migration.status()
+    end)
     
-    -- Find all migration files
-    local migration_files = FileUtils.find_files("db/migrate", "%.lua$")
-    table.sort(migration_files)
-    
-    if #migration_files == 0 then
-        print("No migration files found")
-        return true
-    end
-    
-    for _, migration_file in ipairs(migration_files) do
-        local version = FileUtils.get_basename(migration_file)
-        local status = migrated_versions[version] and "✓ up" or "✗ down"
-        print(string.format("%-40s %s", version, status))
+    if not success then
+        print("Error showing migration status: " .. tostring(err))
+        return false
     end
     
     return true
